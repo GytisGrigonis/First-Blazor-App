@@ -1,0 +1,141 @@
+﻿@page "/"
+@using BlazorApp.Data
+@using BlazorAppDB.Data.Weather
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject WeatherForecastService ForecastService
+
+<h1>Weather forecast</h1>
+<AuthorizeView>
+    <Authorized>
+        <h4>Hello, @context.User.Identity.Name!</h4>
+        @if (forecasts == null)
+        {
+            <p><em>Loading...</em></p>
+        }
+        else
+        {
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Temp. (C)</th>
+                        <th>Temp. (F)</th>
+                        <th>Summary</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var forecast in forecasts)
+                     {
+                        <tr>
+                            <td>@forecast.Date.Value.ToShortDateString()</td>
+                            <td>@forecast.TemperatureC</td>
+                            <td>@forecast.TemperatureF</td>
+                            <td>@forecast.Summary</td>
+                            <td>
+                                <button class="btn btn-primary"
+                                        @onclick="(() => EditForecast(forecast))">
+                                    Edit
+                                </button>
+                            </td>
+                        </tr>
+                     }
+                </tbody>
+            </table>
+            <p>
+                <button class="btn btn-primary"
+                    @onclick="AddNewForecast">
+                    Add New Forecast
+                </button>
+            </p>
+           @if (ShowPopup)
+            {
+                <div class="modal" tabindex="-1" style="display:block" role="dialog">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h3 class="modal-title">Edit Forecast</h3>
+                                <button type="button" class="close"
+                                        @onclick="ClosePopup">
+                                    <span aria-hidden="true">X</span>
+                                </button>
+                            </div>
+                            <div class="modal-body">
+                                <input class="form-control" type="text"
+                                       placeholder="Celsius forecast"
+                                       @bind="objWeatherForecast.TemperatureC" />
+                                <input class="form-control" type="text"
+                                       placeholder="Fahrenheit forecast"
+                                       @bind="objWeatherForecast.TemperatureF" />
+                                <input class="form-control" type="text"
+                                       placeholder="Summary"
+                                       @bind="objWeatherForecast.Summary" />
+                                <br />
+                                <button class="btn btn-primary"
+                                        @onclick="SaveForecast">
+                                    Save
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+    </Authorized>
+    <NotAuthorized>
+        <p>You're not signed in.</p>
+    </NotAuthorized>
+</AuthorizeView>
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState> authenticationStateTask { get; set; }
+    List<WeatherForecast> forecasts;
+    WeatherForecast objWeatherForecast = new WeatherForecast();
+    bool ShowPopup = false;
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await authenticationStateTask).User;
+        forecasts = await ForecastService.GetForecastAsync(user.Identity.Name);
+    }
+    void ClosePopup()
+    {
+        ShowPopup = false;
+    }
+    void AddNewForecast()
+    {
+        objWeatherForecast = new WeatherForecast();
+        objWeatherForecast.Id = 0;
+        ShowPopup = true;
+    }
+    async Task SaveForecast()
+    {
+        ShowPopup = false;
+        var user = (await authenticationStateTask).User;
+        if (objWeatherForecast.Id == 0)
+        {
+            WeatherForecast objNewWeatherForecast = new WeatherForecast();
+            objNewWeatherForecast.Date = System.DateTime.Now;
+            objNewWeatherForecast.Summary = objWeatherForecast.Summary;
+            objNewWeatherForecast.TemperatureC =
+            Convert.ToInt32(objWeatherForecast.TemperatureC);
+            objNewWeatherForecast.TemperatureF =
+            Convert.ToInt32(objWeatherForecast.TemperatureF);
+            objNewWeatherForecast.UserName = user.Identity.Name;
+            var result =
+            ForecastService.CreateForecastAsync(objNewWeatherForecast);
+        }
+        else
+        {
+            var result =
+            ForecastService.UpdateForecastAsync(objWeatherForecast);
+        }
+        forecasts =
+        await ForecastService.GetForecastAsync(user.Identity.Name);
+    }
+
+    void EditForecast(WeatherForecast weatherForecast)
+    {
+        objWeatherForecast = weatherForecast;
+        ShowPopup = true;
+    }
+}
